@@ -9,14 +9,17 @@ from src.decoding import decode_solution
 from src.structural_verifier import validate_directed_route_structure
 from src.route_specific_verifier import validate_route_constraints
 from Code.Not_Noisy.MaxCut.PCE_CUNQA.main_example_simulation import run_simulation_experiment
+from src.structural_verifier import validate_directed_route_structure
+from src.route_generator import extract_route_with_metrics
+from src.route_specific_verifier import validate_route_constraints
 
 BASE_NODE = "Benasque"  # Define the base node for route validation
-VERBOSE = True  # Set to True for detailed diagnostics during validation
+VERBOSE = False  # Set to True for detailed diagnostics during validation
 
 def check_structural_feasibility(dic_x, dic_y, base_node=BASE_NODE):
     """
     Check if the decoded solution satisfies structural constraints.
-    
+
     Parameters
     ----------
     dic_x : dict[(str, str), int]
@@ -32,31 +35,114 @@ def check_structural_feasibility(dic_x, dic_y, base_node=BASE_NODE):
         True if the solution satisfies structural constraints, False otherwise.
     """
     print("\n=== Structural verification ===")
-    print(f"Base node: {BASE_NODE}")
+    print(f"Base node: {base_node}")
 
-    return True
+    if VERBOSE:
+        feasible, diagnostics = validate_directed_route_structure(
+            dic_x=dic_x,
+            dic_y=dic_y,
+            base_node=base_node,
+            verbose=True,
+        )
+
+        print(f"Structurally feasible: {feasible}")
+        if not feasible:
+            print("Structural validation errors:")
+            for err in diagnostics["errors"]:
+                print(f" - {err}")
+
+        return feasible
+
+    feasible = validate_directed_route_structure(
+        dic_x=dic_x,
+        dic_y=dic_y,
+        base_node=base_node,
+        verbose=False,
+    )
+
+    print(f"Structurally feasible: {feasible}")
+    return feasible
 
 
-def check_route_specific_feasibility(dic_x, dic_y, distances_df, elevation_df, base_node=BASE_NODE):
+def check_route_specific_feasibility(
+    dic_x,
+    dic_y,
+    distances_df,
+    elevation_df,
+    base_node=BASE_NODE,
+    max_total_time=12.0,
+    max_total_elevation_gain=2000.0,
+):
     """
     Check if the decoded solution satisfies route-specific constraints.
-    
+
     Parameters
     ----------
     dic_x : dict[(str, str), int]
-        Dictionary mapping edges (u, v) to binary values indicating whether the edge is included in the route.
+        Dictionary mapping directed edges (u, v) to binary values indicating whether the edge is included in the route.
     dic_y : dict[str, int]
         Dictionary mapping nodes to binary values indicating whether the node is visited in the route.
+    distances_df : pd.DataFrame
+        DataFrame containing travel times between nodes.
+    elevation_df : pd.DataFrame
+        DataFrame containing elevation costs/gains between nodes.
     base_node : str
         The required base node that must be included in the route.
+    max_total_time : float
+        Maximum allowed total travel time.
+    max_total_elevation_gain : float
+        Maximum allowed total elevation gain.
 
     Returns
     -------
     bool
         True if the solution satisfies route-specific constraints, False otherwise.
     """
-    print("\n=== Route-specific verification ===")    
-    return True
+    print("\n=== Route-specific verification ===")
+
+    try:
+        route_info = extract_route_with_metrics(
+            dic_x=dic_x,
+            distance_df=distances_df,
+            elevation_df=elevation_df,
+            base_node=base_node,
+        )
+    except Exception as e:
+        print(f"Route generation failed: {e}")
+        return False
+
+    if VERBOSE:
+        print("Generated route:")
+        print(f" - ordered_cycle: {route_info['ordered_cycle']}")
+        print(f" - total_time: {route_info['total_time']}")
+        print(f" - total_elevation_gain: {route_info['total_elevation_gain']}")
+
+        feasible, diagnostics = validate_route_constraints(
+            route_info=route_info,
+            max_total_time=max_total_time,
+            max_total_elevation_gain=max_total_elevation_gain,
+            base_node=base_node,
+            verbose=True,
+        )
+
+        print(f"Route-specific feasible: {feasible}")
+        if not feasible:
+            print("Route-specific violations:")
+            for violation in diagnostics["violations"]:
+                print(f" - {violation}")
+
+        return feasible
+
+    feasible = validate_route_constraints(
+        route_info=route_info,
+        max_total_time=max_total_time,
+        max_total_elevation_gain=max_total_elevation_gain,
+        base_node=base_node,
+        verbose=False,
+    )
+
+    print(f"Route-specific feasible: {feasible}")
+    return feasible
 
 
 def save_qaoa_inputs(list_nodes, list_edges, output_path):
