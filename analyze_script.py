@@ -162,6 +162,29 @@ def get_nth_best_solution(json_path, n=1):
         return nth_best_run["initial_bitstring"], nth_best_run["f_loss_value"]  # Return the solution (list of bits)
    
 
+def objective_value(dic_x, dic_y, distances_df, elevation_df, p_distance=100, p_elevation=100, mu=1):
+    total_distance = 0.0
+    total_elevation = 0.0
+    
+    for (u, v), included in dic_x.items():
+        if included == 1:
+            # Get the distance and elevation cost for this edge
+            distance = distances_df.loc[u, v]
+            elevation = elevation_df.loc[u, v]
+            total_distance += distance
+            total_elevation += elevation
+            
+    # Calculate the objective value as a weighted sum of distance and elevation
+    objective_val = p_distance * total_distance + p_elevation * total_elevation
+    
+    # Add the penalty for visiting nodes (if needed, based on dic_y)
+    for node, visited in dic_y.items():
+        if visited == 1:
+            # If there's a penalty for visiting nodes, it can be added here
+            objective_val -= mu  # Assuming no penalty for visiting nodes, otherwise add it here
+        
+    return objective_val
+       
        
 def main():
     # Load data
@@ -181,8 +204,6 @@ def main():
     num_nodes = len(list_nodes)
     num_edges = len(list_edges)
     
-
-    solution_found = False
     
     output_path = f"Code/Not_Noisy/MaxCut/PCE_CUNQA/Resultados/Route_select/Simulation/{num_nodes}_vertices/DIFFERENTIALEVOLUTION/Route_select_{num_nodes}_DIFFERENTIALEVOLUTION_2.json"
     n = 1
@@ -207,10 +228,10 @@ def main():
             n = n + 1
             continue
         
-        solution_found = True
+        objective_val = objective_value(dic_x, dic_y, distances_df, elevation_df)
     
         print(f"    The {n}-th best solution is feasible.")
-        feasible_solutions.append((n, dic_x, dic_y, f_loss_value))
+        feasible_solutions.append((n, dic_x, dic_y, f_loss_value, objective_val))
         
 
     ic(feasible_solutions)
