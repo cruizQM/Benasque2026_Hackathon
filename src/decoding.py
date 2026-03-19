@@ -30,18 +30,18 @@ def decode_solution(solution: list[int],
     
     dic_x = {}
     dic_y = {}
-
-    # Decode y_i variables (first num_nodes bits)
-    for i in range(num_nodes):
-        dic_y[nodes_list[i]] = solution[i]
         
     # Decode x_{i,j} variables (next num_edges bits)
     for i in range(num_edges):
-        edge_index = num_nodes + i
-        ic(edges_list, i)
+        edge_index = i
         nodeA_idx, nodeB_idx, _ = edges_list[i]  # assuming edges_list contains tuples of the form (nodeA_idx, nodeB_idx, weight)
         nodeA = nodes_list[nodeA_idx]
         nodeB = nodes_list[nodeB_idx]
         dic_x[(nodeA, nodeB)] = solution[edge_index]
+        
+    # Decode y_i variables (first num_nodes bits)
+    for i in range(num_nodes):
+        node_index = num_edges + i
+        dic_y[nodes_list[i]] = solution[node_index]
         
     return dic_x, dic_y

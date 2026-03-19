@@ -29,8 +29,16 @@ class BenasqueDataLoader:
         if self.nodes_df is not None:
             valid_ids = list(self.nodes_df.index)
             self.dist_df = self.dist_df[self.dist_df.index.isin(valid_ids)]
-            ic(self.dist_df)
             self.dist_df = self.dist_df[valid_ids]
+            
+            
+    def _normalize_distances(self):
+        if self._distance_matrix is not None:
+            self._distance_matrix = self._distance_matrix / self.max_distance
+            
+    def _normalize_elevations(self):
+        if self._elevation_matrix is not None:
+            self._elevation_matrix = self._elevation_matrix / self.max_elevation
             
     # -------------------------
     # Load data
@@ -41,31 +49,29 @@ class BenasqueDataLoader:
         
         self.dist_df.index = self.nodes_df.index # align indices
         self.dist_df.columns = self.nodes_df.index
+                
+        self._clean_distances()
+        
+        # get maximum distance for later use
+        self.max_distance = self.dist_df.to_numpy().max()
+        # get maximum difference between elevations for later use
+        self.max_elevation = self.nodes_df["Elevation"].to_numpy().max() - self.nodes_df["Elevation"].to_numpy().min()
         
         self.filter_nodes()
         self.filter_distances()
-        
-        ic(self.dist_df)
-        
-        self._clean_nodes()
-        self._clean_distances()
 
         self._build_distance_matrix()
         self._build_elevation_matrix()
         self.elevation_df = pd.DataFrame(self._elevation_matrix, index=self.nodes_df.index, columns=self.nodes_df.index)
         self._build_scenic_scores()
+        
+        self._normalize_distances()
+        self._normalize_elevations()
+        
 
     # -------------------------
     # Cleaning
     # -------------------------
-    def _clean_nodes(self):
-        self.nodes_df.columns = [c.lower().strip() for c in self.nodes_df.columns]
-
-        # Ensure id exists
-        if "id" not in self.nodes_df.columns:
-            self.nodes_df["id"] = range(len(self.nodes_df))
-
-        self.nodes_df = self.nodes_df.reset_index(drop=True)
 
     def _clean_distances(self):        
         # Make the matrix symmetric by copying upper triangle to lower triangle
@@ -179,7 +185,7 @@ class BenasqueDataLoader:
         }
         
         
-def generate_qaoa_inputs(distance_df, elevation_df, p_distance=1.0, p_elevation=1.0):
+def generate_qaoa_inputs(distance_df, elevation_df, p_distance=100.0, p_elevation=100.0):
     """
     Generate QAOA inputs (cost and mixer Hamiltonians) based on the problem data.
     This is a placeholder function and should be implemented according to the specific QAOA formulation.
@@ -187,9 +193,7 @@ def generate_qaoa_inputs(distance_df, elevation_df, p_distance=1.0, p_elevation=
     num_nodes = distance_df.shape[0]
     # number of edges in the graph (not None)
     list_nodes = distance_df.index.tolist()
-    
-    ic(distance_df)    
-    
+        
     list_edges = []
     for i in range(num_nodes):
         for j in range(num_nodes):
