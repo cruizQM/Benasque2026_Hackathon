@@ -6,7 +6,7 @@ import numpy as np
 # Permitir imports desde HOME
 sys.path.append(os.getenv("HOME"))
 
-from cunqa.qutils import qraise, qdrop
+
 
 # === IMPORTACIÓN DE FUNCIONES PRINCIPALES ===
 from src.exe_experiments import (

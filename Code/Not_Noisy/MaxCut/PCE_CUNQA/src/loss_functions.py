@@ -17,9 +17,9 @@ from src.tensor_exp_value import (
 )
 import numpy as np
 import networkx as nx
-from cunqa.qpu import get_QPUs, run
-from cunqa.qjob import gather
-from cunqa.qiskit_deps.transpiler import transpiler
+
+
+
 
 from qiskit import QuantumCircuit, ClassicalRegister, transpile
 from qiskit_aer import AerSimulator

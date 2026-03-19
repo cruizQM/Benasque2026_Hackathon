@@ -4,6 +4,7 @@ import pandas as pd
 from icecream import ic
 from src.data_loader import BenasqueDataLoader, generate_qaoa_inputs
 from src.decoding import decode_solution
+from Code.Not_Noisy.MaxCut.PCE_CUNQA.main_example_simulation import run_simulation_experiment
 
 def save_qaoa_inputs(list_nodes, list_edges, output_path):
     num_nodes = len(list_nodes)
@@ -31,7 +32,7 @@ def main():
     
     save_qaoa_inputs(list_nodes, list_edges, output_path="inputs.txt")
 
-    
+    run_simulation_experiment()
     # VQA calls would go here, using the generated inputs
     # the result is finally obtained as list of bits representing the solution, which can be decoded using the decode_solution function from decoding.py
     

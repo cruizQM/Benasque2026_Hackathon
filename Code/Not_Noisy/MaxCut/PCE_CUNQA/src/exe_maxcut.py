@@ -74,8 +74,8 @@ def ejecutar_maxcut(
     import math
     import time
 
-    from cunqa.qpu import get_QPUs
-    from cunqa.qiskit_deps.transpiler import transpiler
+    
+    
     
     from qiskit import transpile, QuantumCircuit
     from qiskit_aer import AerSimulator
