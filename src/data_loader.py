@@ -20,10 +20,13 @@ class BenasqueDataLoader:
         self._scenic_scores = None
         
     def filter_nodes(self):
-
+        gear_compatibilities = {"Snow": ["Snow", "Mountain", "Trail", "Urban"],
+                                "Mountain": ["Mountain", "Trail", "Urban"],
+                                "Trail": ["Trail", "Urban"],
+                                "Urban": ["Urban"]}
         station, gear = self.gear_filter.split("_")
         if self.gear_filter:
-            self.nodes_df = self.nodes_df[self.nodes_df[f"{station} gear"] == gear]
+            self.nodes_df = self.nodes_df[self.nodes_df[f"{station} gear"].isin(gear_compatibilities[gear])]
         
     def filter_distances(self):
         if self.nodes_df is not None:
