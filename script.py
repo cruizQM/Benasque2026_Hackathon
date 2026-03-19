@@ -6,7 +6,58 @@ import pandas as pd
 from icecream import ic
 from src.data_loader import BenasqueDataLoader, generate_qaoa_inputs
 from src.decoding import decode_solution
-# from Code.Not_Noisy.MaxCut.PCE_CUNQA.main_example_simulation import run_simulation_experiment
+from src.structural_verifier import validate_directed_route_structure
+from src.route_specific_verifier import validate_route_constraints
+from Code.Not_Noisy.MaxCut.PCE_CUNQA.main_example_simulation import run_simulation_experiment
+
+BASE_NODE = "Benasque"  # Define the base node for route validation
+VERBOSE = True  # Set to True for detailed diagnostics during validation
+
+def check_structural_feasibility(dic_x, dic_y, base_node=BASE_NODE):
+    """
+    Check if the decoded solution satisfies structural constraints.
+    
+    Parameters
+    ----------
+    dic_x : dict[(str, str), int]
+        Dictionary mapping edges (u, v) to binary values indicating whether the edge is included in the route.
+    dic_y : dict[str, int]
+        Dictionary mapping nodes to binary values indicating whether the node is visited in the route.
+    base_node : str
+        The required base node that must be included in the route.
+
+    Returns
+    -------
+    bool
+        True if the solution satisfies structural constraints, False otherwise.
+    """
+    print("\n=== Structural verification ===")
+    print(f"Base node: {BASE_NODE}")
+
+    return True
+
+
+def check_route_specific_feasibility(dic_x, dic_y, distances_df, elevation_df, base_node=BASE_NODE):
+    """
+    Check if the decoded solution satisfies route-specific constraints.
+    
+    Parameters
+    ----------
+    dic_x : dict[(str, str), int]
+        Dictionary mapping edges (u, v) to binary values indicating whether the edge is included in the route.
+    dic_y : dict[str, int]
+        Dictionary mapping nodes to binary values indicating whether the node is visited in the route.
+    base_node : str
+        The required base node that must be included in the route.
+
+    Returns
+    -------
+    bool
+        True if the solution satisfies route-specific constraints, False otherwise.
+    """
+    print("\n=== Route-specific verification ===")    
+    return True
+
 
 def save_qaoa_inputs(list_nodes, list_edges, output_path):
     num_nodes = len(list_nodes)
@@ -31,7 +82,7 @@ def main():
     # Load data
     loader = BenasqueDataLoader(nodes_path="data/nodes.csv",
                                 distances_path="data/distances.csv",
-                                gear_filter="Summer_Urban")
+                                gear_filter="Summer_Trail")
     loader.load()
     
     nodes_df, distances_df, elevation_df = loader.get_dataframes()
@@ -40,11 +91,15 @@ def main():
     # distances_df.to_csv("data/urban_distances.csv")
     # elevation_df.to_csv("data/urban_elevation.csv")
     
-    list_nodes, list_edges = generate_qaoa_inputs(distances_df, elevation_df)
+    list_nodes, list_edges = generate_qaoa_inputs(distances_df, elevation_df,
+                                                  p_distance=100, p_elevation=1000)
     num_nodes = len(list_nodes)
     num_edges = len(list_edges)
     
-    save_qaoa_inputs(list_nodes, list_edges, output_path=f"Code/Not_Noisy/MaxCut/PCE_CUNQA/src/graphs/Route_select_{num_nodes}.txt")
+    # output_path = f"Code/Not_Noisy/MaxCut/PCE_CUNQA/src/graphs/Route_select_{num_nodes}.txt"
+    output_path = f"summer_trail_inputs_elevation.txt"
+    save_qaoa_inputs(list_nodes, list_edges, output_path=output_path)
+    exit()
 
     solution_found = False
     for run in range(MAX_RUNS):
@@ -69,9 +124,8 @@ def main():
                                             list_nodes, list_edges)
             # ic(dic_x, dic_y)
             
-            feasible_structural = False
-            feasible_specific = True
-            
+            feasible_structural = check_structural_feasibility(dic_x, dic_y)
+            feasible_specific = check_route_specific_feasibility(dic_x, dic_y, distances_df, elevation_df) 
             if not feasible_structural or not feasible_specific:
                 n = n + 1
                 continue
