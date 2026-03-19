@@ -20,7 +20,7 @@ The goal is to find a route that:
 We define the following binary variables:
 
 - $x_{ij} \in \{0,1\}$: equals 1 if the edge from node $i$ to node $j$ is selected
-- $ y_j \in \{0,1\} $: equals 1 if node $j$ is visited
+- $y_j \in \{0,1\}$: equals 1 if node $j$ is visited
 
 ---
 
@@ -50,8 +50,8 @@ $$
 
 where:
 
-- $ w_{ij} $: cost associated with edge $(i,j)$
-- $ \mu $: parameter controlling the reward for visiting nodes
+- $w_{ij}$: cost associated with edge $(i,j)$
+- $\mu$: parameter controlling the reward for visiting nodes
 
 This term aims to:
 
@@ -134,7 +134,7 @@ $$
 
 to ensure constraint satisfaction.
 
-- The parameter $ \mu $ controls the trade-off between:
+- The parameter $\mu$ controls the trade-off between:
   - visiting more nodes
   - minimizing traversal cost
 
