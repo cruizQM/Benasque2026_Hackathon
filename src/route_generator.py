@@ -1,4 +1,5 @@
 import math
+from collections import defaultdict
 import pandas as pd
 
 
@@ -9,11 +10,14 @@ def extract_route_with_metrics(
     base_node: str = "Benasque",
 ) -> dict:
     """
-    Reconstruct the ordered directed cycle from the selected arcs and compute
-    total travel time and total elevation cost.
+    Reconstruct a closed directed walk that traverses all selected arcs exactly once
+    and compute total travel time and total elevation cost.
 
     This function assumes that the selected arcs already correspond to a
-    structurally valid directed route.
+    structurally valid directed route in the Eulerian sense:
+        - the selected directed subgraph is connected (in the underlying undirected sense)
+        - every incident node satisfies in-degree == out-degree
+        - the base node belongs to the selected component
 
     Parameters
     ----------
@@ -37,47 +41,65 @@ def extract_route_with_metrics(
     """
     selected_arcs = [(u, v) for (u, v), val in dic_x.items() if val == 1]
 
-    successors = {}
+    if not selected_arcs:
+        raise ValueError("No selected arcs were found; cannot reconstruct a route.")
+
+    # Build adjacency list with multiplicity preserved
+    adjacency = defaultdict(list)
+    incident_nodes = set()
+
     for u, v in selected_arcs:
-        if u in successors:
-            raise ValueError(
-                f"Node '{u}' has more than one selected outgoing arc; "
-                "cannot reconstruct a unique route."
-            )
-        successors[u] = v
+        adjacency[u].append(v)
+        incident_nodes.add(u)
+        incident_nodes.add(v)
 
-    if base_node not in successors:
-        raise ValueError(f"Base node '{base_node}' has no selected outgoing arc.")
+    if base_node not in incident_nodes:
+        raise ValueError(
+            f"Base node '{base_node}' is not incident to any selected arc."
+        )
 
-    ordered_cycle = [base_node]
-    current = base_node
-    seen = {base_node}
+    # Hierholzer's algorithm for directed Eulerian circuit
+    # We copy adjacency because we are going to consume arcs destructively
+    adjacency_copy = {u: neighbors[:] for u, neighbors in adjacency.items()}
 
-    while True:
-        nxt = successors.get(current)
-        if nxt is None:
-            raise ValueError(
-                f"Node '{current}' has no successor during route reconstruction."
-            )
+    stack = [base_node]
+    circuit = []
 
-        ordered_cycle.append(nxt)
+    while stack:
+        current = stack[-1]
+        if current in adjacency_copy and adjacency_copy[current]:
+            nxt = adjacency_copy[current].pop()
+            stack.append(nxt)
+        else:
+            circuit.append(stack.pop())
 
-        if nxt == base_node:
-            break
+    # Hierholzer returns the circuit in reverse order
+    ordered_cycle = circuit[::-1]
 
-        if nxt in seen:
-            raise ValueError(
-                f"Route reconstruction revisits node '{nxt}' before returning to base."
-            )
+    # A valid Eulerian circuit over E arcs must contain E+1 nodes in the walk
+    if len(ordered_cycle) != len(selected_arcs) + 1:
+        raise ValueError(
+            f"Route reconstruction produced a walk of length {len(ordered_cycle)}, "
+            f"but expected {len(selected_arcs) + 1} nodes for {len(selected_arcs)} selected arcs."
+        )
 
-        seen.add(nxt)
-        current = nxt
+    if ordered_cycle[0] != base_node:
+        raise ValueError(
+            f"Reconstructed route starts at '{ordered_cycle[0]}' instead of base '{base_node}'."
+        )
+
+    if ordered_cycle[-1] != base_node:
+        raise ValueError(
+            f"Reconstructed route ends at '{ordered_cycle[-1]}' instead of base '{base_node}'."
+        )
 
     segments = []
     total_time = 0.0
     total_elevation_gain = 0.0
 
     traversed_arcs = 0
+    traversed_arc_list = []
+
     for u, v in zip(ordered_cycle[:-1], ordered_cycle[1:]):
         if u not in distance_df.index or v not in distance_df.columns:
             raise ValueError(f"Missing time data for arc ({u}, {v}).")
@@ -105,11 +127,18 @@ def extract_route_with_metrics(
         total_time += time_val
         total_elevation_gain += elevation_val
         traversed_arcs += 1
+        traversed_arc_list.append((u, v))
+
+    # Check that every selected arc was traversed exactly once
+    if sorted(traversed_arc_list) != sorted(selected_arcs):
+        raise ValueError(
+            "The reconstructed walk does not match the selected arc multiset."
+        )
 
     if traversed_arcs != len(selected_arcs):
         raise ValueError(
             f"Route reconstruction used {traversed_arcs} arcs, but {len(selected_arcs)} "
-            "arcs were selected. The selected arcs may contain disconnected components."
+            "arcs were selected."
         )
 
     return {
