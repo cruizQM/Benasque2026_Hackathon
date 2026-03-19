@@ -89,9 +89,28 @@ def validate_directed_route_structure(
 
     in_degree = {node: 0 for node in dic_y}
     out_degree = {node: 0 for node in dic_y}
-    successors: dict[str, str] = {}
 
-    # 1. Basic checks on selected arcs
+    # ---------------------------------------------------------------------
+    # (1) Base node constraint
+    # ---------------------------------------------------------------------
+    if base_node not in dic_y:
+        errors.append(f"Base node '{base_node}' is not present in dic_y.")
+    elif dic_y[base_node] == 0:
+        errors.append(f"Base node '{base_node}' is not marked as visited.")
+
+    # ---------------------------------------------------------------------
+    # (2) Non-empty selected structure
+    # ---------------------------------------------------------------------
+    if len(selected_arcs) == 0:
+        errors.append("No directed arcs are selected.")
+
+    # Data collected for diagnostics and connectivity
+    incident_nodes = set()
+    undirected_adjacency = {node: set() for node in dic_y}
+
+    # ---------------------------------------------------------------------
+    # (3) Arc validity and node consistency
+    # ---------------------------------------------------------------------
     for u, v in selected_arcs:
         if u not in all_nodes:
             errors.append(f"Selected arc ({u}, {v}) uses unknown start node '{u}'.")
@@ -103,9 +122,10 @@ def validate_directed_route_structure(
         if u == v:
             errors.append(f"Self-loop ({u}, {v}) is not allowed.")
 
-        if dic_y.get(u, 0) != 1:
+        if dic_y.get(u, 0) == 0:
             errors.append(f"Selected arc ({u}, {v}) leaves unvisited node '{u}'.")
-        if dic_y.get(v, 0) != 1:
+
+        if dic_y.get(v, 0) == 0:
             errors.append(f"Selected arc ({u}, {v}) enters unvisited node '{v}'.")
 
         out_degree[u] += 1
