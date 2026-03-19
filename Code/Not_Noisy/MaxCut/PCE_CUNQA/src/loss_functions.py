@@ -8,7 +8,7 @@
 ###
 ### ========================================================= ###
 
-from src.tensor_exp_value import (
+from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.tensor_exp_value import (
     build_probability_tensor,
     run_with_probabilities,
     select_nodes_from_aux,
@@ -186,16 +186,20 @@ def loss_func_estimator(
     ### ----------------------------------------------------- ###
     ### 4. Selección de nodos de interés
     ### ----------------------------------------------------- ###
+    # Número de nodos y aristas
     num_edges = graph.number_of_edges()
     num_nodes = graph.number_of_nodes()
-
     m = num_edges + num_nodes
 
-    mu=1.0
-    lambda1=10.0
-    lambda2=lambda2
-    lambda3=10.0
-    lambda4=lambda3
+    # Obtener el mayor peso de las aristas
+    max_weight = max((data.get("weight", 1.0) for _, _, data in graph.edges(data=True)), default=1.0)
+
+    # Ajustar parámetros de penalización automáticamente
+    mu = 1            # parámetro del número de nodos a visitar
+    lambda1 = 10.0 * max_weight  # penalización de entrada
+    lambda2 = lambda1           # penalización de salida
+    lambda3 = 10.0 * max_weight # penalización de ciclo inicio/fin
+    lambda4 = lambda3
     enforce_cycle=True
 
     node_exp_map = select_nodes_from_aux(aux, m, list_size, return_concatenated=True)

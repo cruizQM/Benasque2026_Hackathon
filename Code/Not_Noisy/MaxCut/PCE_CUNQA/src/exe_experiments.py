@@ -123,8 +123,8 @@ def ejecutar_experimentos(exp_list, optimizer_params, alpha, beta, maxiter, n_sh
     """
 
     # === IMPORTS LOCALES (evita dependencias circulares) ===
-    from src.exe_maxcut import ejecutar_maxcut       # Función principal de ejecución de MaxCut
-    from src.op_graph import load_graph  # Carga de grafos y utilidades
+    from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.exe_maxcut import ejecutar_maxcut       # Función principal de ejecución de MaxCut
+    from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.op_graph import load_graph  # Carga de grafos y utilidades
     from pathlib import Path
 
     # === 1. Extraer parámetros del experimento ===

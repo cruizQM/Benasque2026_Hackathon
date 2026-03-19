@@ -85,15 +85,15 @@ def ejecutar_maxcut(
     import os
 
     # Módulos del proyecto
-    from src.loss_functions import loss_func_estimator
+    from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.loss_functions import loss_func_estimator
     from .auxiliar import (
     num_qubits,
     get_partition_from_expmap,
     local_refinement_from_partition,
     )
-    from src.utilities import (run_vqe_optimization)
-    from src.circuit_builder import Circuit
-    from src.tensor_exp_value import build_sign_tensor
+    from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.utilities import (run_vqe_optimization)
+    from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.circuit_builder import Circuit
+    from Code.Not_Noisy.MaxCut.PCE_CUNQA.src.tensor_exp_value import build_sign_tensor
     
     # === 1. Cargar el grafo del problema ===
     print(f"Nodos: {num_ver}, Aristas: {G.number_of_edges()}")
