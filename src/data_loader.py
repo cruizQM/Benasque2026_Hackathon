@@ -125,7 +125,7 @@ class BenasqueDataLoader:
             for i in range(n):
                 for j in range(n):
                     gain = elevations[j] - elevations[i]
-                    elev_matrix[i, j] = max(gain, 0)  # only uphill counts
+                    elev_matrix[i, j] = gain if gain > 0 else -gain/2  # penalize descents less than ascents
 
             self._elevation_matrix = elev_matrix
         else:
