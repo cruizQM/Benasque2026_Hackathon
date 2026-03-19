@@ -7,142 +7,8 @@ from icecream import ic
 from src.data_loader import BenasqueDataLoader, generate_qaoa_inputs
 from src.decoding import decode_solution
 from src.structural_verifier import validate_directed_route_structure
-from src.route_specific_verifier import validate_route_constraints
-from Code.Not_Noisy.MaxCut.PCE_CUNQA.main_example_simulation import run_simulation_experiment
-from src.structural_verifier import validate_directed_route_structure
 from src.route_generator import extract_route_with_metrics
 from src.route_specific_verifier import validate_route_constraints
-
-BASE_NODE = "Benasque"  # Define the base node for route validation
-VERBOSE = False  # Set to True for detailed diagnostics during validation
-
-def check_structural_feasibility(dic_x, dic_y, base_node=BASE_NODE):
-    """
-    Check if the decoded solution satisfies structural constraints.
-
-    Parameters
-    ----------
-    dic_x : dict[(str, str), int]
-        Dictionary mapping edges (u, v) to binary values indicating whether the edge is included in the route.
-    dic_y : dict[str, int]
-        Dictionary mapping nodes to binary values indicating whether the node is visited in the route.
-    base_node : str
-        The required base node that must be included in the route.
-
-    Returns
-    -------
-    bool
-        True if the solution satisfies structural constraints, False otherwise.
-    """
-    print("\n=== Structural verification ===")
-    print(f"Base node: {base_node}")
-
-    if VERBOSE:
-        feasible, diagnostics = validate_directed_route_structure(
-            dic_x=dic_x,
-            dic_y=dic_y,
-            base_node=base_node,
-            verbose=True,
-        )
-
-        print(f"Structurally feasible: {feasible}")
-        if not feasible:
-            print("Structural validation errors:")
-            for err in diagnostics["errors"]:
-                print(f" - {err}")
-
-        return feasible
-
-    feasible = validate_directed_route_structure(
-        dic_x=dic_x,
-        dic_y=dic_y,
-        base_node=base_node,
-        verbose=False,
-    )
-
-    print(f"Structurally feasible: {feasible}")
-    return feasible
-
-
-def check_route_specific_feasibility(
-    dic_x,
-    dic_y,
-    distances_df,
-    elevation_df,
-    base_node=BASE_NODE,
-    max_total_time=12.0,
-    max_total_elevation_gain=2000.0,
-):
-    """
-    Check if the decoded solution satisfies route-specific constraints.
-
-    Parameters
-    ----------
-    dic_x : dict[(str, str), int]
-        Dictionary mapping directed edges (u, v) to binary values indicating whether the edge is included in the route.
-    dic_y : dict[str, int]
-        Dictionary mapping nodes to binary values indicating whether the node is visited in the route.
-    distances_df : pd.DataFrame
-        DataFrame containing travel times between nodes.
-    elevation_df : pd.DataFrame
-        DataFrame containing elevation costs/gains between nodes.
-    base_node : str
-        The required base node that must be included in the route.
-    max_total_time : float
-        Maximum allowed total travel time.
-    max_total_elevation_gain : float
-        Maximum allowed total elevation gain.
-
-    Returns
-    -------
-    bool
-        True if the solution satisfies route-specific constraints, False otherwise.
-    """
-    print("\n=== Route-specific verification ===")
-
-    try:
-        route_info = extract_route_with_metrics(
-            dic_x=dic_x,
-            distance_df=distances_df,
-            elevation_df=elevation_df,
-            base_node=base_node,
-        )
-    except Exception as e:
-        print(f"Route generation failed: {e}")
-        return False
-
-    if VERBOSE:
-        print("Generated route:")
-        print(f" - ordered_cycle: {route_info['ordered_cycle']}")
-        print(f" - total_time: {route_info['total_time']}")
-        print(f" - total_elevation_gain: {route_info['total_elevation_gain']}")
-
-        feasible, diagnostics = validate_route_constraints(
-            route_info=route_info,
-            max_total_time=max_total_time,
-            max_total_elevation_gain=max_total_elevation_gain,
-            base_node=base_node,
-            verbose=True,
-        )
-
-        print(f"Route-specific feasible: {feasible}")
-        if not feasible:
-            print("Route-specific violations:")
-            for violation in diagnostics["violations"]:
-                print(f" - {violation}")
-
-        return feasible
-
-    feasible = validate_route_constraints(
-        route_info=route_info,
-        max_total_time=max_total_time,
-        max_total_elevation_gain=max_total_elevation_gain,
-        base_node=base_node,
-        verbose=False,
-    )
-
-    print(f"Route-specific feasible: {feasible}")
-    return feasible
 
 
 def save_qaoa_inputs(list_nodes, list_edges, output_path):
@@ -152,86 +18,129 @@ def save_qaoa_inputs(list_nodes, list_edges, output_path):
         f.write(f"{num_nodes} {num_edges}\n")
         for i, j, w in list_edges:
             f.write(f"{i} {j} {w}\n")
-            
-            
-def get_nth_best_solution(json_path, n=1):
-    with open(json_path, "r") as f:
-        data = json.load(f)
-        resultados = data["resultados"]
-        if len(resultados) < n:
-            raise ValueError(f"Requested the {n}-th best solution, but only {len(resultados)} solutions are available.")
-        nth_best_run = resultados[-n]  # Get the n-th best run (assuming they are ordered by performance)
-        return nth_best_run["initial_bitstring"]  # Return the solution (list of bits)
-   
-MAX_RUNS = 10         
+
+
 def main():
+    VERBOSE = False  # Toggle to test both behaviors
+
+    # Example route-specific bounds
+    MAX_TOTAL_TIME = 300.0
+    MAX_TOTAL_ELEVATION_GAIN = 1200.0
+    BASE_NODE = "Benasque"
+
     # Load data
-    loader = BenasqueDataLoader(nodes_path="data/nodes.csv",
-                                distances_path="data/distances.csv",
-                                gear_filter="Summer_Trail")
+    loader = BenasqueDataLoader(
+        nodes_path="data/nodes.csv",
+        distances_path="data/distances.csv",
+        gear_filter="Summer_Urban",
+    )
     loader.load()
-    
+
     nodes_df, distances_df, elevation_df = loader.get_dataframes()
-        
-    # nodes_df.to_csv("data/urban_nodes.csv")
-    # distances_df.to_csv("data/urban_distances.csv")
-    # elevation_df.to_csv("data/urban_elevation.csv")
-    
-    list_nodes, list_edges = generate_qaoa_inputs(distances_df, elevation_df,
-                                                  p_distance=100, p_elevation=1000)
+
+    nodes_df.to_csv("data/urban_nodes.csv")
+    distances_df.to_csv("data/urban_distances.csv")
+    elevation_df.to_csv("data/urban_elevation.csv")
+
+    list_nodes, list_edges = generate_qaoa_inputs(distances_df, elevation_df)
+    save_qaoa_inputs(list_nodes, list_edges, output_path="inputs.txt")
+
+    # Dummy solution
     num_nodes = len(list_nodes)
     num_edges = len(list_edges)
-    
-    # output_path = f"Code/Not_Noisy/MaxCut/PCE_CUNQA/src/graphs/Route_select_{num_nodes}.txt"
-    output_path = f"summer_trail_inputs_elevation.txt"
-    save_qaoa_inputs(list_nodes, list_edges, output_path=output_path)
-    exit()
+    solution = np.random.randint(2, size=num_nodes + num_edges).tolist()
 
-    solution_found = False
-    for run in range(MAX_RUNS):
-        print(f"\n=== Run {run+1}/{MAX_RUNS} ===")
-        # run_simulation_experiment()
-        # VQA calls would go here, using the generated inputs
-        # the result is finally obtained as list of bits representing the solution, which can be decoded using the decode_solution function from decoding.py
-        output_path = f"Code/Not_Noisy/MaxCut/PCE_CUNQA/Resultados/Route_select/Simulation/{num_nodes}_vertices/DIFFERENTIALEVOLUTION/Route_select_{num_nodes}_DIFFERENTIALEVOLUTION_2.json"
-        
-        n = 1
-        while True:
-            print(f"    Trying to decode the {n}-th best solution from the results...")
-            try:
-                solution = get_nth_best_solution(output_path, n=n)
-            except Exception as e:
-                print(f"No more solutions after trying to get the {n}-th best solution.")
-                break
-            # ic(solution)
-            
-            dic_x, dic_y = decode_solution(solution, 
-                                            num_nodes, num_edges,
-                                            list_nodes, list_edges)
-            # ic(dic_x, dic_y)
-            
-            feasible_structural = check_structural_feasibility(dic_x, dic_y)
-            feasible_specific = check_route_specific_feasibility(dic_x, dic_y, distances_df, elevation_df) 
-            if not feasible_structural or not feasible_specific:
-                n = n + 1
-                continue
-            
-            solution_found = True
-        
-            print(f"    The {n}-th best solution is feasible.")
-            break
-        if solution_found:
-            print(f"Feasible solution found in run {run+1}. Stopping further runs.")
-            break
-    
-    if not solution_found:
-        print("Reached the end of the experiment runs without finding a feasible solution.")
+    # Decode
+    dic_x, dic_y = decode_solution(
+        solution,
+        num_nodes,
+        num_edges,
+        list_nodes,
+        list_edges,
+    )
+
+    ic(solution)
+    ic(dic_x, dic_y)
+
+    print("\n=== Structural verification ===")
+    print(f"Base node: {BASE_NODE}")
+
+    if VERBOSE:
+        structural_feasible, structural_diagnostics = validate_directed_route_structure(
+            dic_x=dic_x,
+            dic_y=dic_y,
+            base_node=BASE_NODE,
+            verbose=True,
+        )
+
+        print(f"Structurally feasible route: {structural_feasible}")
+
+        if not structural_feasible:
+            print("Structural validation errors:")
+            for err in structural_diagnostics["errors"]:
+                print(f" - {err}")
+            return
+
     else:
-        print("Feasible solution found.")
+        structural_feasible = validate_directed_route_structure(
+            dic_x=dic_x,
+            dic_y=dic_y,
+            base_node=BASE_NODE,
+            verbose=False,
+        )
 
-    
-    
-    
+        print(f"Structurally feasible route: {structural_feasible}")
+
+        if not structural_feasible:
+            print("Route extraction skipped because the solution is not structurally valid.")
+            return
+
+    # Extract ordered route and route metrics
+    print("\n=== Route extraction ===")
+    route_info = extract_route_with_metrics(
+        dic_x=dic_x,
+        distance_df=distances_df,
+        elevation_df=elevation_df,
+        base_node=BASE_NODE,
+    )
+
+    print("Ordered cycle:")
+    print(route_info["ordered_cycle"])
+    print(f"Total time: {route_info['total_time']}")
+    print(f"Total elevation gain: {route_info['total_elevation_gain']}")
+
+    # Route-specific constraints
+    print("\n=== Route-specific verification ===")
+
+    if VERBOSE:
+        route_feasible, route_diagnostics = validate_route_constraints(
+            route_info=route_info,
+            max_total_time=MAX_TOTAL_TIME,
+            max_total_elevation_gain=MAX_TOTAL_ELEVATION_GAIN,
+            base_node=BASE_NODE,
+            verbose=True,
+        )
+
+        print(f"Route-specific feasible: {route_feasible}")
+
+        if route_feasible:
+            print("Route satisfies all route-specific constraints.")
+        else:
+            print("Route-specific violations:")
+            for violation in route_diagnostics["violations"]:
+                print(f" - {violation}")
+
+    else:
+        route_feasible = validate_route_constraints(
+            route_info=route_info,
+            max_total_time=MAX_TOTAL_TIME,
+            max_total_elevation_gain=MAX_TOTAL_ELEVATION_GAIN,
+            base_node=BASE_NODE,
+            verbose=False,
+        )
+
+        print(f"Route-specific feasible: {route_feasible}")
+
 
 if __name__ == "__main__":
     main()
