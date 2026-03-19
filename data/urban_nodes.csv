@@ -1,7 +1,7 @@
-,unnamed: 0,type,elevation,winter gear,summer gear,id
-0,3,Town,1135,Urban,Urban,0
-1,4,Town,1530,Urban,Urban,1
-2,5,Town,1140,Urban,Urban,2
-3,8,Resting area,1550,Urban,Urban,3
-4,9,Resting area,1747,Urban,Urban,4
-5,17,Town,1089,Urban,Urban,5
+Place,Unnamed: 0,Type,Elevation,Winter gear,Summer gear
+Benasque,3,Town,1135,Urban,Urban
+Cerler,4,Town,1530,Urban,Urban
+Ancils,5,Town,1140,Urban,Urban
+Baños de Benasque,8,Resting area,1550,Urban,Urban
+Hospital de Benasque,9,Resting area,1747,Urban,Urban
+Eriste,17,Town,1089,Urban,Urban
