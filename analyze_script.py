@@ -11,7 +11,7 @@ from src.structural_verifier import validate_directed_route_structure
 from src.route_generator import extract_route_with_metrics
 
 BASE_NODE = "Benasque"  # Define the base node for route validation
-VERBOSE = True  # Set to True for detailed diagnostics during validation
+VERBOSE = False  # Set to True for detailed diagnostics during validation
 
 def check_structural_feasibility(dic_x, dic_y, base_node=BASE_NODE):
     """
@@ -73,27 +73,10 @@ def check_route_specific_feasibility(
     """
     Check if the decoded solution satisfies route-specific constraints.
 
-    Parameters
-    ----------
-    dic_x : dict[(str, str), int]
-        Dictionary mapping directed edges (u, v) to binary values indicating whether the edge is included in the route.
-    dic_y : dict[str, int]
-        Dictionary mapping nodes to binary values indicating whether the node is visited in the route.
-    distances_df : pd.DataFrame
-        DataFrame containing travel times between nodes.
-    elevation_df : pd.DataFrame
-        DataFrame containing elevation costs/gains between nodes.
-    base_node : str
-        The required base node that must be included in the route.
-    max_total_time : float
-        Maximum allowed total travel time.
-    max_total_elevation_gain : float
-        Maximum allowed total elevation gain.
-
     Returns
     -------
-    bool
-        True if the solution satisfies route-specific constraints, False otherwise.
+    tuple[bool, dict | None]
+        (feasible, route_info)
     """
     print("\n=== Route-specific verification ===")
 
@@ -106,7 +89,7 @@ def check_route_specific_feasibility(
         )
     except Exception as e:
         print(f"Route generation failed: {e}")
-        return False
+        return False, None
 
     if VERBOSE:
         print("Generated route:")
@@ -128,7 +111,7 @@ def check_route_specific_feasibility(
             for violation in diagnostics["violations"]:
                 print(f" - {violation}")
 
-        return feasible
+        return feasible, route_info
 
     feasible = validate_route_constraints(
         route_info=route_info,
@@ -139,7 +122,7 @@ def check_route_specific_feasibility(
     )
 
     print(f"Route-specific feasible: {feasible}")
-    return feasible
+    return feasible, route_info
 
 
 
@@ -179,7 +162,7 @@ def objective_value(dic_x, dic_y, distances_df, elevation_df, p_distance=100, p_
     
     # Add the penalty for visiting nodes (if needed, based on dic_y)
     for node, visited in dic_y.items():
-        if visited == 1:
+        if visited >= 1:
             # If there's a penalty for visiting nodes, it can be added here
             objective_val -= mu  # Assuming no penalty for visiting nodes, otherwise add it here
         
@@ -190,7 +173,7 @@ def main():
     # Load data
     loader = BenasqueDataLoader(nodes_path="data/nodes.csv",
                                 distances_path="data/distances.csv",
-                                gear_filter="Summer_Urban")
+                                gear_filter="Summer_Mountain")
     loader.load()
     
     nodes_df, distances_df, elevation_df = loader.get_dataframes()
@@ -205,9 +188,11 @@ def main():
     num_edges = len(list_edges)
     
     
-    output_path = f"Code/Not_Noisy/MaxCut/PCE_CUNQA/Resultados/Route_select/Simulation/{num_nodes}_vertices/DIFFERENTIALEVOLUTION/Route_select_{num_nodes}_DIFFERENTIALEVOLUTION_2.json"
+    output_path = f"Code/Not_Noisy/MaxCut/PCE_CUNQA/Resultados/Route_select/Simulation/{num_nodes}_vertices/DIFFERENTIALEVOLUTION/_Equal_Route_select_{num_nodes}_DIFFERENTIALEVOLUTION_2.json"
+    print(output_path)
     n = 1
     feasible_solutions = []
+    seen_routes = set()
     while True:
         print(f"    Trying to decode the {n}-th best solution from the results...")
         try:
@@ -224,15 +209,26 @@ def main():
         ic(dic_x, dic_y)
         
         feasible_structural = check_structural_feasibility(dic_x, dic_y)
-        feasible_specific = check_route_specific_feasibility(dic_x, dic_y, distances_df, elevation_df) 
+        feasible_specific, route_info = check_route_specific_feasibility(
+    dic_x, dic_y, distances_df, elevation_df
+)
+        n = n + 1
         if not feasible_structural or not feasible_specific:
-            n = n + 1
             continue
         
-        objective_val = objective_value(dic_x, dic_y, distances_df, elevation_df)
-    
-        print(f"    The {n}-th best solution is feasible.")
-        feasible_solutions.append((n, dic_x, dic_y, f_loss_value, objective_val))
+        route = route_info["ordered_cycle"]
+        total_time = route_info["total_time"]
+        route_tuple = tuple(route)
+
+        if route_tuple not in seen_routes:
+            seen_routes.add(route_tuple)
+            print(f"    The {n}-th best solution is feasible and unique.")
+            feasible_solutions.append({
+                "route": route,
+                "total_time": total_time,
+            })
+        else:
+            print(f"    The {n}-th best solution is feasible but duplicated.")
         
 
     ic(feasible_solutions)
