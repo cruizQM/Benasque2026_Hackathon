@@ -220,7 +220,8 @@ def main():
         dic_x, dic_y = decode_solution(solution, 
                                         num_nodes, num_edges,
                                         list_nodes, list_edges)
-        # ic(dic_x, dic_y)
+        print(f"DICTS")
+        ic(dic_x, dic_y)
         
         feasible_structural = check_structural_feasibility(dic_x, dic_y)
         feasible_specific = check_route_specific_feasibility(dic_x, dic_y, distances_df, elevation_df) 

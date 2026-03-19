@@ -107,7 +107,7 @@ def validate_directed_route_structure(
     # ---------------------------------------------------------------------
     if base_node not in dic_y:
         errors.append(f"Base node '{base_node}' is not present in dic_y.")
-    elif dic_y[base_node] != 1:
+    elif dic_y[base_node] == 0:
         errors.append(f"Base node '{base_node}' is not marked as visited.")
 
     # ---------------------------------------------------------------------
@@ -135,10 +135,10 @@ def validate_directed_route_structure(
         if u == v:
             errors.append(f"Self-loop ({u}, {v}) is not allowed.")
 
-        if dic_y.get(u, 0) != 1:
+        if dic_y.get(u, 0) == 0:
             errors.append(f"Selected arc ({u}, {v}) leaves unvisited node '{u}'.")
 
-        if dic_y.get(v, 0) != 1:
+        if dic_y.get(v, 0) == 0:
             errors.append(f"Selected arc ({u}, {v}) enters unvisited node '{v}'.")
 
         incident_nodes.add(u)
