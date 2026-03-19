@@ -1,4 +1,5 @@
-#src/structural_verifier.py
+# src/structural_verifier.py
+from collections import deque
 from typing import Any
 
 
@@ -9,49 +10,60 @@ def validate_directed_route_structure(
     verbose: bool = False,
 ) -> bool | tuple[bool, dict[str, Any]]:
     """
-    Validate whether a decoded directed solution defines a single closed route.
+    Validate graph-level structural constraints for a decoded directed solution.
 
-    This function checks that a candidate solution (given by dic_x and dic_y)
-    represents a valid directed cycle (route) satisfying structural constraints.
+    This function performs only the checks that can be verified directly from
+    the selected nodes and arcs, without reconstructing an explicit route.
+
+    The selected directed arcs are interpreted as defining a candidate directed
+    subgraph from which we later want to generate a closed walk that:
+        - starts at the base node,
+        - ends at the base node,
+        - traverses all selected arcs,
+        - and therefore also covers all selected nodes incident to those arcs.
+
+    Structural feasibility here means that the candidate passes the necessary
+    graph-level conditions for the existence of such a closed walk.
 
     The following conditions are enforced:
 
     -------------------------------------------------------------------------
-    (1) Arc validity and node consistency
+    (1) Base node constraint
+        - The base node must exist in dic_y.
+        - The base node must be selected (visited).
+
+    -------------------------------------------------------------------------
+    (2) Non-empty selected structure
+        - At least one directed arc must be selected.
+
+    -------------------------------------------------------------------------
+    (3) Arc validity and node consistency
         - Every selected arc (u, v) must refer to existing nodes.
         - No self-loops are allowed: (u, u) is forbidden.
-        - If an arc (u, v) is selected, then both nodes must be visited:
+        - If an arc (u, v) is selected, then both endpoint nodes must be
+          selected:
               x_(u,v) = 1  =>  y_u = 1 and y_v = 1
 
     -------------------------------------------------------------------------
-    (2) Degree constraints (flow conservation)
-        For each node:
-        - If the node is visited (y_u = 1):
-            * exactly one outgoing arc must be selected
-            * exactly one incoming arc must be selected
-        - If the node is NOT visited (y_u = 0):
-            * no incoming arcs must be selected
-            * no outgoing arcs must be selected
-
-        This enforces that visited nodes behave like a proper cycle,
-        and unvisited nodes are completely disconnected.
+    (4) Selected-node incidence consistency
+        - Every selected node must be incident to at least one selected arc.
+        - This prevents isolated selected nodes that cannot belong to the walk.
 
     -------------------------------------------------------------------------
-    (3) Base node constraint
-        - The base node must exist in dic_y
-        - The base node must be visited (y_base = 1)
+    (5) Connectivity of the selected structure
+        - The selected structure must form a single connected component when
+          viewed as an undirected graph.
+        - The base node must belong to that connected component.
+
+        This ensures that the selected structure is all in one piece.
 
     -------------------------------------------------------------------------
-    (4) Single-cycle (no subtours)
-        - The selected arcs must define exactly one directed cycle.
-        - Starting from the base node and following successors:
-            * we must return to the base
-            * we must visit ALL visited nodes exactly once
-            * no node can be revisited before closing the cycle
+    (6) Directed degree balance (Eulerian balance)
+        - For every node incident to selected arcs:
+              in-degree(node) == out-degree(node)
 
-    -------------------------------------------------------------------------
-    (5) Arc count consistency
-        - A valid directed cycle with N visited nodes must have exactly N arcs.
+        This is the graph-level condition needed for the existence of a closed
+        directed walk traversing all selected arcs.
 
     -------------------------------------------------------------------------
 
@@ -61,9 +73,9 @@ def validate_directed_route_structure(
         Directed arc-selection dictionary. dic_x[(u, v)] = 1 means that
         the directed arc u -> v is selected.
     dic_y : dict[str, int]
-        Node-selection dictionary. dic_y[u] = 1 means that node u is visited.
+        Node-selection dictionary. dic_y[u] = 1 means that node u is selected.
     base_node : str
-        Required start/end node of the route.
+        Required base node of the route.
     verbose : bool, optional
         If False, return only a boolean feasibility flag.
         If True, return (feasible, diagnostics).
@@ -71,8 +83,8 @@ def validate_directed_route_structure(
     Returns
     -------
     bool
-        If verbose=False, returns True if the route is structurally valid,
-        otherwise False.
+        If verbose=False, returns True if the candidate passes the structural
+        prechecks, otherwise False.
 
     tuple[bool, dict]
         If verbose=True, returns:
@@ -84,9 +96,9 @@ def validate_directed_route_structure(
     all_nodes = set(dic_y.keys())
     selected_nodes = [node for node, val in dic_y.items() if val == 1]
     selected_node_set = set(selected_nodes)
-
     selected_arcs = [(u, v) for (u, v), val in dic_x.items() if val == 1]
 
+    # Degree bookkeeping for Eulerian balance
     in_degree = {node: 0 for node in dic_y}
     out_degree = {node: 0 for node in dic_y}
 
@@ -115,6 +127,7 @@ def validate_directed_route_structure(
         if u not in all_nodes:
             errors.append(f"Selected arc ({u}, {v}) uses unknown start node '{u}'.")
             continue
+
         if v not in all_nodes:
             errors.append(f"Selected arc ({u}, {v}) uses unknown end node '{v}'.")
             continue
@@ -128,102 +141,64 @@ def validate_directed_route_structure(
         if dic_y.get(v, 0) == 0:
             errors.append(f"Selected arc ({u}, {v}) enters unvisited node '{v}'.")
 
+        incident_nodes.add(u)
+        incident_nodes.add(v)
+
         out_degree[u] += 1
         in_degree[v] += 1
 
-    # 2. Degree conditions
-    for node in dic_y:
-        visited = dic_y[node] == 1
+        # Build underlying undirected adjacency for connectivity check
+        undirected_adjacency[u].add(v)
+        undirected_adjacency[v].add(u)
 
-        if visited:
-            if out_degree[node] != 1:
-                errors.append(
-                    f"Visited node '{node}' has out-degree {out_degree[node]} instead of 1."
-                )
-            if in_degree[node] != 1:
-                errors.append(
-                    f"Visited node '{node}' has in-degree {in_degree[node]} instead of 1."
-                )
-        else:
-            if out_degree[node] != 0:
-                errors.append(
-                    f"Unvisited node '{node}' has out-degree {out_degree[node]} instead of 0."
-                )
-            if in_degree[node] != 0:
-                errors.append(
-                    f"Unvisited node '{node}' has in-degree {in_degree[node]} instead of 0."
-                )
+    # ---------------------------------------------------------------------
+    # (4) Selected-node incidence consistency
+    # ---------------------------------------------------------------------
+    isolated_selected_nodes = selected_node_set - incident_nodes
+    if isolated_selected_nodes:
+        errors.append(
+            f"Selected nodes with no incident selected arc: {sorted(isolated_selected_nodes)}."
+        )
 
-    # 3. Base node must be visited
-    if base_node not in dic_y:
-        errors.append(f"Base node '{base_node}' is not present in dic_y.")
-    elif dic_y[base_node] != 1:
-        errors.append(f"Base node '{base_node}' is not marked as visited.")
-
-    ordered_cycle = None
-
-    # 4. Single-cycle reconstruction only if local constraints passed
+    # ---------------------------------------------------------------------
+    # (5) Connectivity of the selected structure (undirected sense)
+    # ---------------------------------------------------------------------
     if not errors:
-        for u, v in selected_arcs:
-            if u in successors:
+        if base_node not in incident_nodes:
+            errors.append(
+                f"Base node '{base_node}' is selected but has no incident selected arc."
+            )
+        else:
+            visited = set()
+            queue = deque([base_node])
+
+            while queue:
+                node = queue.popleft()
+                if node in visited:
+                    continue
+                visited.add(node)
+
+                for neigh in undirected_adjacency[node]:
+                    if neigh not in visited:
+                        queue.append(neigh)
+
+            if visited != incident_nodes:
+                missing = incident_nodes - visited
                 errors.append(
-                    f"Node '{u}' has more than one selected outgoing arc."
+                    f"The selected structure is not connected. "
+                    f"Nodes not connected to the base component: {sorted(missing)}."
                 )
-            successors[u] = v
 
-        if not errors:
-            ordered_cycle = [base_node]
-            seen = {base_node}
-            current = base_node
-
-            while True:
-                if current not in successors:
-                    errors.append(
-                        f"Node '{current}' has no selected outgoing arc during traversal."
-                    )
-                    ordered_cycle = None
-                    break
-
-                nxt = successors[current]
-                ordered_cycle.append(nxt)
-
-                if nxt == base_node:
-                    break
-
-                if nxt in seen:
-                    errors.append(
-                        f"Traversal revisits node '{nxt}' before returning to the base."
-                    )
-                    ordered_cycle = None
-                    break
-
-                seen.add(nxt)
-                current = nxt
-
-            if ordered_cycle is not None:
-                cycle_node_set = set(ordered_cycle[:-1])
-
-                if cycle_node_set != selected_node_set:
-                    missing = selected_node_set - cycle_node_set
-                    extra = cycle_node_set - selected_node_set
-
-                    if missing:
-                        errors.append(
-                            f"The cycle misses visited nodes: {sorted(missing)}."
-                        )
-                    if extra:
-                        errors.append(
-                            f"The cycle includes nodes not marked as visited: {sorted(extra)}."
-                        )
-                    ordered_cycle = None
-
-                if len(selected_arcs) != len(selected_nodes):
-                    errors.append(
-                        f"A valid directed cycle should have the same number of selected arcs "
-                        f"and visited nodes, but got {len(selected_arcs)} arcs and "
-                        f"{len(selected_nodes)} visited nodes."
-                    )
-                    ordered_cycle = None
+    # ---------------------------------------------------------------------
+    # (6) Directed degree balance (Eulerian balance)
+    # ---------------------------------------------------------------------
+    if not errors:
+        for node in incident_nodes:
+            if in_degree[node] != out_degree[node]:
+                errors.append(
+                    f"Node '{node}' is not balanced: in-degree = {in_degree[node]}, "
+                    f"out-degree = {out_degree[node]}."
+                )
 
     feasible = len(errors) == 0
 
@@ -234,8 +209,9 @@ def validate_directed_route_structure(
         "errors": errors,
         "selected_nodes": selected_nodes,
         "selected_arcs": selected_arcs,
+        "incident_nodes": sorted(incident_nodes),
         "in_degree": in_degree,
         "out_degree": out_degree,
-        "ordered_cycle": ordered_cycle,
+        "base_node": base_node,
     }
     return feasible, diagnostics
