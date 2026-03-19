@@ -67,7 +67,15 @@ class BenasqueDataLoader:
 
         self.nodes_df = self.nodes_df.reset_index(drop=True)
 
-    def _clean_distances(self):
+    def _clean_distances(self):        
+        # Make the matrix symmetric by copying upper triangle to lower triangle
+        for i in range(len(self.dist_df)):
+             for j in range(i+1, len(self.dist_df)):
+                if pd.notna(self.dist_df.iloc[i, j]) and pd.isna(self.dist_df.iloc[j, i]):
+                    self.dist_df.iloc[j, i] = self.dist_df.iloc[i, j]
+                elif pd.isna(self.dist_df.iloc[i, j]) and pd.notna(self.dist_df.iloc[j, i]):
+                    self.dist_df.iloc[i, j] = self.dist_df.iloc[j, i]
+        
         # Convert all values to numeric
         self.dist_df = self.dist_df.apply(
             lambda col: col.map(self._convert_to_numeric)
@@ -176,17 +184,17 @@ def generate_qaoa_inputs(distance_df, elevation_df, p_distance=1.0, p_elevation=
     Generate QAOA inputs (cost and mixer Hamiltonians) based on the problem data.
     This is a placeholder function and should be implemented according to the specific QAOA formulation.
     """
-    n = distance_df.shape[0]
+    num_nodes = distance_df.shape[0]
     # number of edges in the graph (not None)
-    num_edges = np.sum(~np.isinf(distance_df.to_numpy())) - n  # exclude self-loops
+    list_nodes = distance_df.index.tolist()
     
     ic(distance_df)    
     
     list_edges = []
-    for i in range(n):
-        for j in range(n):
+    for i in range(num_nodes):
+        for j in range(num_nodes):
             if not np.isnan(distance_df.iloc[i, j]) and i != j:
                 w_ij = p_distance * distance_df.iloc[i, j] + p_elevation * elevation_df.iloc[i, j]
-                list_edges.append((i+1, j+1, float(w_ij)))
+                list_edges.append((i, j, float(w_ij)))
                 
-    return n, num_edges, list_edges
+    return list_nodes, list_edges

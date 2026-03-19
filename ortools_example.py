@@ -31,28 +31,26 @@ def main():
     
     save_qaoa_inputs(num_nodes, num_edges, list_edges, output_path="inputs.txt")
     
-    exit()
-
-    inputs = loader.get_optimization_inputs()
+    # inputs = loader.get_optimization_inputs()
     
-    ic(inputs)
+    # ic(inputs)
 
-    # Solve route
-    route, obj_value = solve_hiking_route(inputs["distance"],
-                                         inputs["elevation"],
-                                         inputs["scenic"],
-                                         max_distance=200.0,
-                                         max_elevation=1000.0,
-                                         alpha=0.1,
-                                         beta=1.0)
+    # # Solve route
+    # route, obj_value = solve_hiking_route(inputs["distance"],
+    #                                      inputs["elevation"],
+    #                                      inputs["scenic"],
+    #                                      max_distance=200.0,
+    #                                      max_elevation=1000.0,
+    #                                      alpha=0.1,
+    #                                      beta=1.0)
     
-    if route is not None:
-        print("Optimal route found:")
-        for i, j in route:
-            print(f"{loader.places[i]} -> {loader.places[j]}")
-        print(f"Objective value: {obj_value}")
-    else:
-        print("No feasible route found.")
+    # if route is not None:
+    #     print("Optimal route found:")
+    #     for i, j in route:
+    #         print(f"{loader.places[i]} -> {loader.places[j]}")
+    #     print(f"Objective value: {obj_value}")
+    # else:
+    #     print("No feasible route found.")
     
     
 if __name__ == "__main__":
