@@ -31,24 +31,28 @@ class BenasqueDataLoader:
             self.dist_df = self.dist_df[self.dist_df.index.isin(valid_ids)]
             ic(self.dist_df)
             self.dist_df = self.dist_df[valid_ids]
-
+            
     # -------------------------
     # Load data
     # -------------------------
     def load(self):
         self.nodes_df = pd.read_csv(self.nodes_path, index_col=1)
-        self.dist_df = pd.read_csv(self.distances_path, index_col=0)
+        self.dist_df = pd.read_csv(self.distances_path, index_col=0)        
+        
         self.dist_df.index = self.nodes_df.index # align indices
         self.dist_df.columns = self.nodes_df.index
         
         self.filter_nodes()
         self.filter_distances()
         
+        ic(self.dist_df)
+        
         self._clean_nodes()
         self._clean_distances()
 
         self._build_distance_matrix()
         self._build_elevation_matrix()
+        self.elevation_df = pd.DataFrame(self._elevation_matrix, index=self.nodes_df.index, columns=self.nodes_df.index)
         self._build_scenic_scores()
 
     # -------------------------
@@ -69,8 +73,14 @@ class BenasqueDataLoader:
             lambda col: col.map(self._convert_to_numeric)
         )
 
-        # Fill missing with large penalty
-        self.dist_df = self.dist_df.fillna(1e6)
+        # # Fill missing with large penalty
+        # self.dist_df = self.dist_df.fillna(1e6)
+        
+        # Fill 0s with small penalty (except diagonal)
+        for i in range(len(self.dist_df)):
+            for j in range(len(self.dist_df)):
+                if i != j and self.dist_df.iloc[i, j] == 0:
+                    self.dist_df.iloc[i, j] = 20*(1/60)  # 20 minutes in hours
 
     # -------------------------
     # Conversion helper
@@ -99,7 +109,7 @@ class BenasqueDataLoader:
     # Build matrices
     # -------------------------
     def _build_distance_matrix(self):
-        self._distance_matrix = self.dist_df.to_numpy(dtype=float)
+        self._distance_matrix = self.dist_df.fillna(1e6).replace(0, 1/12).to_numpy(dtype=float)
 
     def _build_elevation_matrix(self):
         """
@@ -151,7 +161,7 @@ class BenasqueDataLoader:
         return self._scenic_scores
 
     def get_dataframes(self):
-        return self.nodes_df, self.dist_df
+        return self.nodes_df, self.dist_df, self.elevation_df
 
     def get_optimization_inputs(self):
         return {
@@ -161,7 +171,7 @@ class BenasqueDataLoader:
         }
         
         
-def generate_qaoa_inputs(distance_df, elevation_df, lambda_distance=1.0, lambda_elevation=1.0):
+def generate_qaoa_inputs(distance_df, elevation_df, p_distance=1.0, p_elevation=1.0):
     """
     Generate QAOA inputs (cost and mixer Hamiltonians) based on the problem data.
     This is a placeholder function and should be implemented according to the specific QAOA formulation.
@@ -169,11 +179,14 @@ def generate_qaoa_inputs(distance_df, elevation_df, lambda_distance=1.0, lambda_
     n = distance_df.shape[0]
     # number of edges in the graph (not None)
     num_edges = np.sum(~np.isinf(distance_df.to_numpy())) - n  # exclude self-loops
-    ic(num_edges)
     
+    ic(distance_df)    
     
     list_edges = []
     for i in range(n):
         for j in range(n):
-            if distance_df.iloc[i, j] is not None and i != j:
-                list_edges.append((i, j, w_ij))
+            if not np.isnan(distance_df.iloc[i, j]) and i != j:
+                w_ij = p_distance * distance_df.iloc[i, j] + p_elevation * elevation_df.iloc[i, j]
+                list_edges.append((i+1, j+1, float(w_ij)))
+                
+    return n, num_edges, list_edges
